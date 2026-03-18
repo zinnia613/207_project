@@ -1,0 +1,433 @@
+---
+title: "STA207_Final"
+author: "Akshaj Joshi"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(haven)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+
+
+students_data <- read_sav("/Users/akshajjoshi/Downloads/dataverse_files/STAR_Students.sav")
+k3_data <- read_sav("/Users/akshajjoshi/Downloads/dataverse_files/STAR_K-3_Schools.sav")
+hs_data <- read_sav("/Users/akshajjoshi/Downloads/dataverse_files/STAR_High_Schools.sav")
+
+```
+
+
+
+```{r}
+colnames(students_data)
+```
+
+```{r}
+attributes(students_data$gkfreelunch)
+```
+
+
+### Drop NA values for class assignment
+```{r}
+library(haven)
+
+students_clean <- students_data %>%
+  filter(!is.na(gkclasstype)) %>%
+  mutate(across(where(is.labelled), as_factor))
+```
+
+### Baseline Table to check balanced factors in each class type
+```{r}
+library(dplyr)
+library(tidyr)
+library(knitr)
+
+balance_table <- students_clean %>%
+  group_by(gkclasstype) %>%
+  summarise(
+    Students = n(),
+    Female = mean(gender == levels(gender)[2], na.rm = TRUE),
+    Free_Lunch = mean(gkfreelunch == levels(gkfreelunch)[2], na.rm = TRUE)
+  )
+
+race_balance <- students_clean %>%
+  count(gkclasstype, race) %>%
+  group_by(gkclasstype) %>%
+  mutate(prop = n / sum(n)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = prop)
+
+final_balance <- balance_table %>%
+  left_join(race_balance, by = "gkclasstype")
+
+kable(final_balance,
+      caption = "Baseline Characteristics by Class Type")
+```
+
+
+### Grade 3 Math and Reading Score Intervals
+```{r}
+scores_long <- students_clean %>%
+  select(gkclasstype, g3treadss, g3tmathss) %>%
+  pivot_longer(
+    cols = c(g3treadss, g3tmathss),
+    names_to = "subject",
+    values_to = "score"
+  ) %>%
+  mutate(
+    subject = recode(subject,
+                     g3treadss = "Reading",
+                     g3tmathss = "Math")
+  )
+
+ggplot(scores_long, aes(x = gkclasstype, y = score, fill = subject)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  labs(
+    title = "Distribution of Grade 3 Reading and Math Scores by Class Type",
+    x = "Class Type",
+    y = "Test Score",
+    fill = "Subject"
+  ) +
+  theme_minimal()
+```
+
+### High School GPA Distribution
+```{r}
+ggplot(students_clean %>% filter(!is.na(hsgpaoverall)),
+       aes(x = hsgpaoverall)) +
+  geom_histogram(fill = "steelblue", bins = 30) +
+  labs(
+    title = "Distribution of High School GPA",
+    x = "High School GPA (0–100 scale)",
+    y = "Count"
+  ) +
+  theme_minimal()
+```
+
+
+
+```{r}
+ggplot(students_clean,
+       aes(x = gkclasstype, y = g3treadss, color = gkfreelunch)) +
+  stat_summary(fun = mean, geom = "line", aes(group = gkfreelunch)) +
+  stat_summary(fun = mean, geom = "point") +
+  labs(
+    title = "Interaction Between Class Type and Free Lunch Status",
+    x = "Class Type",
+    y = "Average Reading Score",
+    color = "Free Lunch"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(students_clean,
+       aes(x = gkclasstype, y = g3tmathss, color = gkfreelunch)) +
+  stat_summary(fun = mean, geom = "line", aes(group = gkfreelunch), size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  labs(
+    title = "Interaction Between Class Type and Free Lunch Status (Math Scores)",
+    x = "Kindergarten Class Type",
+    y = "Average Grade 3 Math Score",
+    color = "Free Lunch Status"
+  ) +
+  theme_minimal()
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+ggplot(students_clean %>% filter(!is.na(hsgpaoverall)),
+       aes(x = g3treadss, y = hsgpaoverall)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", color = "red") +
+  labs(
+    title = "Grade 3 Reading Scores vs High School GPA",
+    x = "Grade 3 Reading Score",
+    y = "High School GPA"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+math_long <- students_clean %>%
+  select(gkclasstype, gkfreelunch,
+         gktmathss, g1tmathss, g2tmathss, g3tmathss) %>%
+  pivot_longer(
+    cols = c(gktmathss, g1tmathss, g2tmathss, g3tmathss),
+    names_to = "grade",
+    values_to = "math_score"
+  )
+
+math_long$grade <- recode(math_long$grade,
+  gktmathss = "Kindergarten",
+  g1tmathss = "Grade 1",
+  g2tmathss = "Grade 2",
+  g3tmathss = "Grade 3"
+)
+
+ggplot(math_long,
+       aes(x = gkclasstype, y = math_score, fill = gkclasstype)) +
+  geom_boxplot() +
+  facet_wrap(~ grade) +
+  labs(
+    title = "Math Score Distributions by Class Type Across Grades K–3",
+    x = "Kindergarten Class Type",
+    y = "Math Score",
+    fill = "Class Type"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+```{r}
+table(students_clean$gkthighdegree)
+```
+
+
+
+```{r}
+students_exp <- students_clean %>%
+  filter(!is.na(g3tmathss),
+         !is.na(gkclasstype),
+         !is.na(gktyears),
+         gkthighdegree == 'MASTERS') %>%   # keep only degree level 2
+  mutate(exp_group = cut(
+    gktyears,
+    breaks = c(0,5,10,15,20,Inf),
+    labels = c("0–5","6–10","11–15","16–20","20+")
+  )) %>%
+  filter(!is.na(exp_group))
+
+ggplot(students_exp,
+       aes(x = g3tmathss, fill = gkclasstype)) +
+  geom_density(alpha = 0.4) +
+  facet_wrap(~ exp_group) +
+  labs(
+    title = "Grade 3 Math Score Distributions by Teacher Experience (Degree Level 2)",
+    x = "Grade 3 Math Score",
+    y = "Density",
+    fill = "Class Type"
+  ) +
+  theme_minimal()
+```
+
+### SES Plots
+```{r}
+library(dplyr)
+library(tidyr)
+
+scores_long <- students_clean %>%
+  filter(!is.na(g3tmathss),
+         !is.na(g3treadss),
+         !is.na(gkclasstype),
+         !is.na(gkfreelunch)) %>%
+  select(gkclasstype, gkfreelunch, g3tmathss, g3treadss) %>%
+  pivot_longer(
+    cols = c(g3tmathss, g3treadss),
+    names_to = "subject",
+    values_to = "score"
+  )
+
+scores_long$subject <- recode(scores_long$subject,
+  g3tmathss = "Math",
+  g3treadss = "Reading"
+)
+
+ggplot(scores_long,
+       aes(x = gkclasstype,
+           y = score,
+           fill = factor(gkfreelunch))) +
+  stat_summary(fun = mean, geom = "bar", position = "dodge") +
+  facet_wrap(~ subject) +
+  labs(
+    title = "Grade 3 Achievement by Class Type and SES",
+    x = "Kindergarten Class Type",
+    y = "Average Score",
+    fill = "SES"
+  ) +
+  scale_fill_discrete(labels = c("Free Lunch", "Non-Free Lunch")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## GAP of SES
+```{r}
+gap_data <- scores_long %>%
+  group_by(subject, gkclasstype, gkfreelunch) %>%
+  summarise(mean_score = mean(score, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = gkfreelunch, values_from = mean_score) %>%
+  mutate(gap = `NON-FREE LUNCH` - `FREE LUNCH`)
+
+ggplot(gap_data,
+       aes(x = gkclasstype, y = gap, fill = gkclasstype)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ subject) +
+  labs(
+    title = "SES Achievement Gap by Class Type",
+    x = "Kindergarten Class Type",
+    y = "Score Gap (Non-Free Lunch − Free Lunch)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+names(students_clean)[grepl("^hs", names(students_clean))]
+```
+
+```{r}
+ggplot(students_clean,
+       aes(x = g3tmathss, y = hsgpaoverall, color = gkclasstype)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Relationship Between Grade 3 Math Scores and High School GPA",
+    x = "Grade 3 Math Score",
+    y = "High School GPA",
+    color = "Class Type"
+  ) +
+  theme_minimal()
+```
+
+### Check equal class size
+```{r}
+teacher_data <- students_clean %>%
+  select(gktchid, gkclasstype, gktyears) %>%
+  distinct()
+
+teacher_data %>%
+  group_by(gkclasstype) %>%
+  summarise(
+    Teachers = n(),
+    Mean_Experience = round(mean(gktyears, na.rm = TRUE), 2),
+    SD_Experience = round(sd(gktyears, na.rm = TRUE), 2)
+  )
+
+
+```
+
+### Fade out vs accumulation
+```{r}
+library(dplyr)
+library(tidyr)
+
+math_long <- students_clean %>%
+  select(gkclasstype, gktmathss, g1tmathss, g2tmathss, g3tmathss) %>%
+  pivot_longer(
+    cols = c(gktmathss, g1tmathss, g2tmathss, g3tmathss),
+    names_to = "grade",
+    values_to = "score"
+  )
+
+math_long$grade <- recode(math_long$grade,
+  gktmathss = "K",
+  g1tmathss = "1",
+  g2tmathss = "2",
+  g3tmathss = "3"
+)
+
+math_long$grade <- factor(math_long$grade,
+                          levels = c("K","1","2","3"))
+
+ggplot(math_long,
+       aes(x = grade, y = score,
+           color = gkclasstype,
+           group = gkclasstype)) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  labs(
+    title = "Math Achievement Trajectories by Class Type (K–3)",
+    x = "Grade",
+    y = "Average Math Score",
+    color = "Class Type"
+  ) +
+  theme_minimal()
+```
+
+
+### Class-size treatment effect over time
+```{r}
+effect_data <- math_long %>%
+  group_by(grade, gkclasstype) %>%
+  summarise(mean_score = mean(score, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = gkclasstype, values_from = mean_score) %>%
+  mutate(effect = `SMALL CLASS` - `REGULAR CLASS`)
+
+ggplot(effect_data,
+       aes(x = grade, y = effect, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  labs(
+    title = "Evolution of the Class Size Effect Across Grades",
+    x = "Grade",
+    y = "Small Class Advantage (Score Difference)"
+  ) +
+  theme_minimal()
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+gain_data <- students_clean %>%
+  mutate(
+    gain_K1 = g1tmathss - gktmathss,
+    gain_12 = g2tmathss - g1tmathss,
+    gain_23 = g3tmathss - g2tmathss
+  ) %>%
+  select(gkclasstype, gain_K1, gain_12, gain_23) %>%
+  pivot_longer(
+    cols = starts_with("gain"),
+    names_to = "grade_gain",
+    values_to = "gain"
+  )
+
+# Rename transitions
+gain_data$grade_gain <- recode(gain_data$grade_gain,
+  gain_K1 = "K → 1",
+  gain_12 = "1 → 2",
+  gain_23 = "2 → 3"
+)
+
+# Set correct order
+gain_data$grade_gain <- factor(
+  gain_data$grade_gain,
+  levels = c("K → 1", "1 → 2", "2 → 3")
+)
+
+ggplot(gain_data,
+       aes(x = grade_gain,
+           y = gain,
+           color = gkclasstype,
+           group = gkclasstype)) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  labs(
+    title = "Learning Gains by Class Type Across Grades",
+    x = "Grade Transition",
+    y = "Average Math Score Gain",
+    color = "Class Type"
+  ) +
+  theme_minimal()
+```
+

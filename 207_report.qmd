@@ -1,0 +1,887 @@
+---
+title: "A 3-Level Hierarchical Linear Modeling of Class Size Effects in Project STAR"
+subtitle: "207_Group1_project"
+format: 
+  html:
+    theme: flatly         
+    toc: true             
+    toc-location: left    
+    embed-resources: true  
+    df-print: paged   
+    code-fold: true       
+    code-tools: true
+execute:
+  warning: false         
+  message: false
+editor: visual
+number-sections: true
+author: Akshaj Joshi, Minghao Wang, Jingya Zeng and Phoo Pye Zone
+---
+
+```{=html}
+<style>
+figcaption, .figure-caption {
+  text-align: center !important;
+}
+</style>
+```
+
+```{r}
+#| label: load-packages
+#| include: false
+
+library(tidyverse)
+library(palmerpenguins)
+library(DiagrammeR)
+library(haven)    
+library(lme4)      
+library(lmerTest) 
+
+df_students <- read_sav("C:/Users/lenovo/Desktop/STA207/raw data/STAR_Students.sav") %>% rename_with(tolower)
+df_schools <- read_sav("C:/Users/lenovo/Desktop/STA207/raw data/STAR_K-3_Schools.sav") %>% rename_with(tolower)
+```
+
+```{r}
+#| label: hlm_k
+#| include: false
+
+# Data Clean
+df_k <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = gkschid,      
+    class_id   = gktchid,     
+    
+    math_score = gktmathss,     
+    
+    # Level l
+    low_ses    = gkfreelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = gkclasstype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = gktyears,     
+    t_degree   = gkthighdegree,     
+    t_race     = gktrace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = gkfrlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),             # 1=Poverty, 0=o/w
+    female      = ifelse(gender == 2, 1, 0),              # 1=female, 0=male
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   # 1=minority, 0=white
+    small_class = ifelse(class_type == 1, 1, 0),          # 1=small, 0=regular/aid
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),             # 1=master or above, 0=bachelor
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), # 1=minority teacher
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_k <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    (1 | school_id/class_id), 
+  
+  data = df_k,
+  REML = TRUE 
+)
+```
+
+```{r}
+#| label: hlm_1
+#| include: false
+
+# Data Clean
+df_1 <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = g1schid,      
+    class_id   = g1tchid,     
+    
+    math_score = g1tmathss,     
+    
+    # Level l
+    low_ses    = g1freelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = g1classtype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = g1tyears,     
+    t_degree   = g1thighdegree,     
+    t_race     = g1trace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = g1frlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),             # 1=Poverty, 0=o/w
+    female      = ifelse(gender == 2, 1, 0),              # 1=female, 0=male
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   # 1=minority, 0=white
+    small_class = ifelse(class_type == 1, 1, 0),          # 1=small, 0=regular/aid
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),             # 1=master or above, 0=bachelor
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), # 1=minority teacher
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_1 <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    
+    (1 | school_id/class_id), 
+  
+  data = df_1,
+  REML = TRUE,
+  control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))
+)
+```
+
+```{r}
+#| label: hlm_2
+#| include: false
+
+# Data Clean
+df_2 <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = g2schid,      
+    class_id   = g2tchid,     
+    
+    math_score = g2tmathss,     
+    
+    # Level l
+    low_ses    = g2freelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = g2classtype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = g2tyears,     
+    t_degree   = g2thighdegree,     
+    t_race     = g2trace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = g2frlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),            
+    female      = ifelse(gender == 2, 1, 0),              
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   
+    small_class = ifelse(class_type == 1, 1, 0),          
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),            
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), 
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_2 <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    
+    (1 | school_id/class_id), 
+  
+  data = df_2,
+  REML = TRUE 
+)
+```
+
+```{r}
+#| label: hlm_3
+#| include: false
+
+# Data Clean
+df_3 <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = g3schid,      
+    class_id   = g3tchid,     
+    
+    math_score = g3tmathss,     
+    
+    # Level l
+    low_ses    = g3freelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = g3classtype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = g3tyears,     
+    t_degree   = g3thighdegree,     
+    t_race     = g3trace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = g3frlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),             
+    female      = ifelse(gender == 2, 1, 0),              
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   
+    small_class = ifelse(class_type == 1, 1, 0),         
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),            
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), 
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_3 <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    
+    (1 | school_id/class_id), 
+  
+  data = df_3,
+  REML = TRUE 
+)
+```
+
+## Abstract
+
+::: {.callout-note appearance="simple" icon="false"}
+Education represents one of the largest public investments in society, and early educational environments play a critical role in students' academic development. Among the many factors affecting student success, class size has remained a major focus of educational policy, as smaller classes may allow teachers to provide more individualized attention and improve student outcomes. In this study, we investigate the causal impact of small class sizes in early elementary education using data from the Tennessee Student/Teacher Achievement Ratio experiment (Project STAR), one of the first large-scale randomized experiments in education. In addition to estimating the overall effect of small classes on student achievement, we also examine how these effects evolve across grades and student groups.
+:::
+
+## Introduction
+
+### Background
+
+Prior literature exploring aspects of early education produced largely inconclusive results**(e.g., Glass & Smith, 1979)**. Many early studies relied on observational data and failed to control for important variables such as school resources, teacher quality, and socioeconomic factors. Due to the lack of randomization of students in classrooms and limited coverage of other variables, causal effects could not be definitively established, introducing confounding factors **(Finn & Achilles, 1990)**. These limitations are addressed by the Tennessee Student/Teacher Achievement Ratio experiment (Project STAR), first introduced in 1985. As one of the first large-scale randomized experiments in early education, Project STAR became a foundational study examining the causal impact of small class sizes on student achievement and serves as the primary point of reference for our analysis.
+
+In this study, the data analyzed are sourced from the Tennessee Student/Teacher Achievement Ratio (Project STAR) experiment, a four-year longitudinal randomized educational study conducted by the Tennessee Department of Education beginning in 1985, focusing on how reductions in class size affect student performance during early elementary school. Project STAR examined over 7,000 students in 79 schools from the grades Kindergarten to Grade 3. Students and teachers were randomly assigned to different classroom environments (Small, Regular, and Regular+Aide). This experiment is one of the most influential randomized experiments in early education research and has set the foundation for many follow-up studies examining the long-term effects of early educational interventions on later academic outcomes.
+
+### Data Source
+
+The project provides the STAR-and-Beyond database, which contains raw student- and school-level data covering student demographics, classroom assignment, and academic performance from Kindergarten to Grade 3. This contains follow-up data on later educational outcomes through high school, such as graduation status, GPA, and higher education pursuit. This combination of educational outcomes across grades are important in evaluating the impact of educational factors on long-term academic development.
+
+Our analysis is based on two key datasets:
+
+**`STAR_Students`**: Contains individual information on participating students, such as demographic characteristics, classroom assignment, and standardized test scores in reading and mathematics from Kindergarten through Grade 3.
+
+**`STAR_K-3_Schools`**: Contains information about each elementary school, including links between students and the schools they attended, helping us account for potential differences across schools.
+
+### Limitations of Project STAR
+
+Although Project STAR offers an insightful view into the impact of class size, it is not without important caveats:
+
+1\. **Re-randomization:** In Grade 1, students in Regular and Regular+Aide classrooms were re-randomized, complicating longitudinal analysis.
+
+2\. **Non-compliance:** Some students did not remain in their originally assigned classroom type throughout the study, leading to partial treatment contamination.
+
+3\. **Student Mobility:** Because Kindergarten attendance was not mandatory, new students entered the experiment in later grades while others left, meaning cohorts observed in later grades are not identical to those originally randomized.
+
+## Questions of Interest
+
+This study evaluates the causal impact of class size on students' academic outcomes in early education using a 3-level hierarchical model accounting for variation across students, teachers, and schools.
+
+::: callout-tip
+## Research Questions
+
+1.  **Main Effect:** Does assignment to a small class lead to higher mathematics performance than assignment to other classroom types from Kindergarten through Grade 3?
+2.  **Equity Gap:** Do small classes reduce the socioeconomic achievement gap?
+3.  **Longitudinal Trend:** How does the effect of small class size evolve from Kindergarten through Grade 3? Does the advantage persist, accumulate, or fade over time?
+:::
+
+Addressing these questions is critical for educational policy and resource allocation. If small classes yield a significant main effect (Q1) and narrow the equity gap (Q2), class-size reduction could serve as a powerful tool for social mobility. However, if the benefits fade over time (Q3), policymakers must consider whether the high financial cost of hiring more teachers for smaller classes is justified, or if resources should be redirected to sustained, targeted interventions in later grades.
+
+------------------------------------------------------------------------
+
+## Descriptive Analysis
+
+Before specifying the formal hierarchical models, we first examine the unadjusted descriptive patterns within the dataset. This exploratory phase serves two primary purposes: to visualize how raw mathematics performance varies across class types, socioeconomic groups, and longitudinal grade levels; and to identify the baseline data structures that will directly motivate our subsequent modeling choices.
+
+### Class Size and Math Score Distributions
+
+@fig-class-size-dist represents the distribution of math scores across class types from Kindergarten through Grade 3. At every grade level we can see that small classes have a slightly higher median math scores compared to regular or regular-with-aide classrooms. Although the differences are visually smaller, it is important to note that this pattern remains across grades, and motivates our analysis to determine if there is a statistically backed advantage of smaller classes in greater math scores. The additional density plots accounting for teacher experience and fixing the degree level highlight whether teacher characteristics can explain the differences in classroom types. The data shows major overlap in distributions for the varying years of experience, indicating teacher experience alone may not account for the differences. As students are nested within classrooms, including teacher experience allows our model to account for between-classroom variation and better isolate the effect of class size.
+
+```{r}
+#| label: fig-class-size-dist
+#| fig-cap: "Class Size and Math Scores Distributions"
+#| fig-subcap: 
+#|   - "Math Scores by Class Type (Grades K-3)"
+#|   - "Grade 3 Scores by Teacher Experience"
+#| fig-align: center
+#| layout-ncol: 2
+#| echo: false
+#| eval: true
+#| fig-width: 6
+#| fig-height: 5
+#| warning: false
+#| message: false
+
+library(haven)
+
+students_clean <- df_students %>%
+  filter(!is.na(gkclasstype)) %>%
+  mutate(across(where(is.labelled), as_factor))
+
+library(dplyr)
+library(tidyr)
+
+math_long <- students_clean %>%
+  select(gkclasstype, gkfreelunch,
+         gktmathss, g1tmathss, g2tmathss, g3tmathss) %>%
+  pivot_longer(
+    cols = c(gktmathss, g1tmathss, g2tmathss, g3tmathss),
+    names_to = "grade",
+    values_to = "math_score"
+  )
+
+math_long$grade <- recode(math_long$grade,
+  gktmathss = "Kindergarten",
+  g1tmathss = "Grade 1",
+  g2tmathss = "Grade 2",
+  g3tmathss = "Grade 3"
+)
+
+ggplot(math_long,
+       aes(x = gkclasstype, y = math_score, fill = gkclasstype)) +
+  geom_boxplot() +
+  facet_wrap(~ grade) +
+  labs(
+    title = "Math Score Distributions by Class Type Across Grades K–3",
+    x = "Kindergarten Class Type",
+    y = "Math Score",
+    fill = "Class Type"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+students_exp <- students_clean %>%
+  filter(!is.na(g3tmathss),
+         !is.na(gkclasstype),
+         !is.na(gktyears),
+         gkthighdegree == 'MASTERS') %>%   # keep only degree level 2
+  mutate(exp_group = cut(
+    gktyears,
+    breaks = c(0,5,10,15,20,Inf),
+    labels = c("0–5","6–10","11–15","16–20","20+")
+  )) %>%
+  filter(!is.na(exp_group))
+
+ggplot(students_exp,
+       aes(x = g3tmathss, fill = gkclasstype)) +
+  geom_density(alpha = 0.4) +
+  facet_wrap(~ exp_group) +
+  labs(
+    title = "Grade 3 Math Score Distributions by Teacher Experience (Degree Level 2)",
+    x = "Grade 3 Math Score",
+    y = "Density",
+    fill = "Class Type"
+  ) +
+  theme_minimal()
+```
+
+### Achievement Gap by Socioeconomic Status
+
+@fig-2-barplot visualizes the differences in academic scores by socioeconomic status using free lunch status as a proxy. Across the three class types, the average math and reading scores are consistently lower for those who qualify for free lunch over those who don’t. Focusing on just the scores of small classes, there seems to be slightly higher average scores for both free and not free lunch status. This motivates analysis to determine if smaller classes reduce the socioeconomic (SES) achievement gap statistically.
+
+```{r}
+#| label: fig-2-barplot
+#| fig-cap: "Grade 3 Achievement by Class Type and SES"
+#| fig-align: center
+#| echo: false
+
+library(dplyr)
+library(tidyr)
+
+scores_long <- students_clean %>%
+  filter(!is.na(g3tmathss),
+         !is.na(g3treadss),
+         !is.na(gkclasstype),
+         !is.na(gkfreelunch)) %>%
+  select(gkclasstype, gkfreelunch, g3tmathss, g3treadss) %>%
+  pivot_longer(
+    cols = c(g3tmathss, g3treadss),
+    names_to = "subject",
+    values_to = "score"
+  )
+
+scores_long$subject <- recode(scores_long$subject,
+  g3tmathss = "Math",
+  g3treadss = "Reading"
+)
+
+ggplot(scores_long,
+       aes(x = gkclasstype,
+           y = score,
+           fill = factor(gkfreelunch))) +
+  stat_summary(fun = mean, geom = "bar", position = "dodge") +
+  facet_wrap(~ subject) +
+  labs(
+    title = "Grade 3 Achievement by Class Type and SES",
+    x = "Kindergarten Class Type",
+    y = "Average Score",
+    fill = "SES"
+  ) +
+  scale_fill_discrete(labels = c("Free Lunch", "Non-Free Lunch")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Evolution of the Class Size Effect
+
+@fig-3-line shows the trend of the effect of class size from Kindergarten to Grade 3. We calculate the difference in average math scores between small and regular classes at each grade level to view the advantage of class size as students progress. The apparent advantage of small classes increases from Kindergarten to Grade 1, but then decreases in Grades 2 and 3. This pattern indicates there may be evidence of a fade-out rather than accumulation of class-size effects as students move up in grades. This compels inferential analysis to formally test if these differences in academic performance due to class size persist after controlling for socioeconomic characteristics and classroom level factors.
+
+```{r}
+#| label: fig-3-line
+#| fig-cap: "Evolution of the Class Size Effect Across Grades"
+#| fig-align: center
+#| echo: false
+
+math_long <- students_clean %>%
+  select(gkclasstype, gktmathss, g1tmathss, g2tmathss, g3tmathss) %>%
+  pivot_longer(
+    cols = c(gktmathss, g1tmathss, g2tmathss, g3tmathss),
+    names_to = "grade",
+    values_to = "score"
+  ) %>%
+
+  mutate(grade = factor(grade, 
+                        levels = c("gktmathss", "g1tmathss", "g2tmathss", "g3tmathss"),
+                        labels = c("Kindergarten", "Grade 1", "Grade 2", "Grade 3")))
+
+effect_data <- math_long %>%
+  group_by(grade, gkclasstype) %>%
+  summarise(mean_score = mean(score, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = gkclasstype, values_from = mean_score) %>%
+  mutate(effect = `SMALL CLASS` - `REGULAR CLASS`)
+
+ggplot(effect_data,
+       aes(x = grade, y = effect, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  labs(
+    title = "Evolution of the Class Size Effect Across Grades",
+    x = "Grade",
+    y = "Small Class Advantage (Score Difference)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note appearance="simple" icon="false"}
+## Summary of Descriptive Findings
+
+The exploratory visualizations reveal three preliminary patterns:
+
+1.  **The Class-Size Advantage:** Students assigned to small classes exhibit slightly higher median mathematics scores across all evaluated grades compared to their peers in regular classrooms.
+2.  **The Socioeconomic Gap:** A persistent achievement gap exists; students with free-lunch status (low-SES) consistently perform worse on average across all classroom settings.
+3.  **The Longitudinal Fade-out:** The unadjusted advantage of small classes appears to weaken in later grades, suggesting a possible fade-out effect rather than the continued accumulation of academic benefits.
+
+**Motivation for Inferential Modeling:** While these descriptive trends are informative, they are strictly unadjusted. Because students are deeply nested within specific classrooms and schools, these raw differences may be confounded by structural clustering or demographic imbalances. This motivates our transition to a formal **3-level Hierarchical Linear Model (HLM)** to rigorously test whether the observed class-size effects persist after controlling for student, teacher, and school-level covariates.
+:::
+
+## Methodology and Data Preprocessing
+
+### Hierarchical Data Structure
+
+The STAR dataset exhibits a strict hierarchical nesting structure. To appropriately model the variance in student math scores and avoid the deflation of standard errors associated with Ordinary Least Squares (OLS) regression on clustered data, the dataset was organized into three distinct levels:
+
+-   **Level 1 (Student):** Individual student characteristics and test scores.
+-   **Level 2 (Class):** Classroom-level interventions (class size) and teacher attributes.
+-   **Level 3 (School):** School-wide demographic indicators.
+
+```{mermaid}
+%%| fig-width: 8
+%%| fig-align: center
+%%| fig-cap: "<div style='text-align: center;'> The 3-Level Nesting Structure of the STAR Dataset</div>"
+
+graph LR
+    subgraph School ["Level 3: School"]
+        
+        subgraph ClassA ["Level 2: Small Class"]
+            direction TB
+            S1("Student"):::stu
+            S2("Student"):::stu
+        end
+        
+        subgraph ClassB ["Level 2: Regular Class"]
+            direction TB
+            S3("Student"):::stu
+            S4("Student"):::stu
+        end
+        
+    end
+
+    classDef stu fill:#FFFFFF,stroke:#BDC3C7,stroke-width:1px,color:#2C3E50,font-weight:bold,rx:4,ry:4
+    
+    style School fill:#ECF0F1,stroke:#BDC3C7,stroke-width:2px,stroke-dasharray: 5 5,color:#2C3E50,rx:8,ry:8
+    
+    style ClassA fill:#18BC9C,stroke:none,color:#FFFFFF,rx:6,ry:6
+    style ClassB fill:#2C3E50,stroke:none,color:#FFFFFF,rx:6,ry:6
+```
+
+### Dummy Coding Specification
+
+To facilitate the inclusion of categorical predictors within the Hierarchical Linear Model (HLM) and to ensure meaningful interpretation of the model's coefficients, extensive data processing and dummy coding were performed. For all dichotomous variables, a value of $0$ was assigned to the reference group, and a value of $1$ was assigned to the comparison group.
+
+::: column-margin
+**💡 Understanding the Intercept (Baseline)**
+
+By utilizing this specific coding scheme, the **Intercept** ($\beta_0$) in the resulting HLM outputs represents the expected math score for a baseline student:
+
+A White male student, not receiving free lunch, taught by a White teacher with zero years of experience and a Bachelor's degree, in a regular-sized class, located within a lower-poverty school.
+:::
+
+#### Level 1: Student Characteristics
+
+-   **Socioeconomic Status (`low_ses`):** \* $1 =$ Student receives free lunch (Low SES)
+    -   $0 =$ Student does not receive free lunch (Reference)
+-   **Gender (`female`):** \* $1 =$ Female student
+    -   $0 =$ Male student (Reference)
+-   **Race (`minority`):** \* $1 =$ Minority student (Black, Asian, Hispanic, Native American, etc.)
+    -   $0 =$ White student (Reference)
+
+#### Level 2: Class and Teacher Characteristics
+
+-   **Class Type (`small_class`):** As the primary focal intervention of the STAR project, class assignment was coded to isolate the "small class" effect.
+    -   $1 =$ Small class (typically 13-17 students)
+    -   $0 =$ Regular class or regular class with a full-time aide (Reference)
+
+::: {.column-margin}
+**Note on Control Group:** Consistent with previous seminal analyses of the STAR dataset, regular and regular-with-aide classrooms were pooled into a single control group, as preliminary literature suggests the presence of an aide yields negligible mathematics achievement differences compared to actual class-size reduction.
+:::
+
+* **Teacher Education (`t_degree_hi`):** * $1 =$ Master’s degree or higher
+  * $0 =$ Bachelor’s degree (Reference)
+* **Teacher Race (`t_minority`):** * $1 =$ Minority teacher
+  * $0 =$ White teacher (Reference)
+-   **Teacher Education (`t_degree_hi`):** \* $1 =$ Master’s degree or higher
+    -   $0 =$ Bachelor’s degree (Reference)
+-   **Teacher Race (`t_minority`):** \* $1 =$ Minority teacher
+    -   $0 =$ White teacher (Reference)
+
+#### Level 3: School Characteristics
+
+-   **School Poverty Level (`high_poverty_sch`):** To categorize school-level poverty, a median split approach was utilized based on the percentage of students qualifying for free lunch at each school.
+    -   $1 =$ High-poverty school (Poverty percentage $>$ sample median)
+    -   $0 =$ Lower-poverty school (Poverty percentage $\le$ sample median)
+
+::: {.callout-note appearance="simple"}
+**Note on Continuous Predictors:** **Teacher Experience (`t_exp`)** was retained as a continuous numerical variable representing the number of years a teacher has been teaching. It was not mean-centered in this specific analysis, meaning its zero-point directly represents a first-year teacher.
+:::
+
+### Model Specification
+
+To rigorously address this and isolate the true causal effect of class size, we proposed a 3-Level Hierarchical Linear Model (HLM) with random intercepts.
+
+**Level 1 (Student Level):** $$ Y_{ijk} = \pi_{0jk} + \pi_{1jk}(LowSES_{ijk}) + \pi_{2}(Female_{ijk}) + \pi_{3}(Minority_{ijk}) + \epsilon_{ijk} $$
+
+**Level 2 (Class Level):** $$ \pi_{0jk} = \beta_{00k} + \beta_{01}(SmallClass_{jk}) + \beta_{02}(T\_Exp_{jk}) + \beta_{03}(T\_DegreeHi_{jk}) + \beta_{04}(T_Minority_{jk}) + u_{0jk} $$ $$ \pi_{1jk} = \beta_{10k} + \beta_{11}(SmallClass_{jk}) \quad \text{(Micro-Interaction)} $$
+
+**Level 3 (School Level):** $$ \beta_{00k} = \gamma_{000} + \gamma_{001}(HighPovertySch_{k}) + v_{00k} $$
+
+$$
+\beta_{01k} = \gamma_{010} + \gamma_{011}(HighPovertySch_k) \quad \text{(Micro-Interaction)}
+$$
+
+Where $e_{ijk} \sim N(0, \sigma^2)$, $u_{0jk} \sim N(0, \tau_{\pi})$, and $v_{00k} \sim N(0, \tau_{\beta})$ represent the student, classroom, and school-level random effects, respectively. Crucially, we controlled for teacher covariates (`T_Exp`, `T_degree`, `T_Minority`) at Level 2 to eliminate endogeneity, ensuring any academic boost is driven strictly by class-size reduction rather than systematic assignment to better teachers.
+
+### Model Assumptions
+
+For the inferences drawn from the 3-level Linear Mixed Models (fitted via Restricted Maximum Likelihood, REML) to be valid, several core structural assumptions must be met. Let $Y_{ijk}$ denote the math score for student $i$ in class $j$ and school $k$.
+
+::: {.callout-note icon="false" appearance="simple"}
+#### 1. Independence
+
+Conditional on the random intercepts for classrooms and schools, the Level-1 (student) residuals $\epsilon_{ijk}$ are assumed to be mutually independent.
+:::
+
+::: {.callout-note icon="false" appearance="simple"}
+#### 2. Normality & Homoscedasticity of Residuals
+
+The Level-1 error terms are identically and independently distributed following a normal distribution with a mean of zero and a constant variance ($\sigma^2$) across all groups: $$\epsilon_{ijk} \sim \mathcal{N}(0, \sigma^2)$$
+:::
+
+::: {.callout-note icon="false" appearance="simple"}
+#### 3. Normality of Random Effects
+
+The random intercepts for Level-2 classrooms ($u_{0jk}$) and Level-3 schools ($v_{00k}$) are assumed to be strictly independent of the Level-1 residuals and follow normal distributions with specific variance components ($\tau_{\pi}$ and $\tau_{\beta}$): $$u_{0jk} \sim \mathcal{N}(0, \tau_{\pi})$$ $$v_{00k} \sim \mathcal{N}(0, \tau_{\beta})$$
+:::
+
+## Inferential analysis
+
+### Model Diagnostics
+
+::: panel-tabset
+#### Residuals vs Fitted
+
+```{r}
+#| echo: false
+plot(fitted(hlm_k), resid(hlm_k), main="Residuals vs Fitted")
+abline(h=0)
+```
+
+The plot displays a roughly symmetrical scatter around the zero line without obvious non-linear curvature, supporting the assumption of linearity. The vertical spread remains relatively constant across the fitted values, indicating that the assumption of homoscedasticity is not severely violated. The distinct diagonal striations are typical artifacts of modeling discrete standardized test scores.
+
+#### Residual Q-Q
+
+```{r}
+#| echo: false
+qqnorm(resid(hlm_k), main="Residual Q-Q Plot")
+qqline(resid(hlm_k))
+```
+
+The sample quantiles align closely with the theoretical normal quantiles through the center of the distribution. Minor deviations at the extreme tails are acceptable given the large sample size and the robust nature of Restricted Maximum Likelihood (REML) estimation.
+
+#### Random Effects
+
+```{r}
+#| echo: false
+par(mfrow=c(1,2))
+re <- ranef(hlm_k)
+qqnorm(re$`class_id:school_id`[,1], main="Classroom Random Effects")
+qqline(re$`class_id:school_id`[,1])
+qqnorm(re$school_id[,1], main="School Random Effects")
+qqline(re$school_id[,1])
+par(mfrow=c(1,1))
+```
+
+Both the classroom-level (Level 2) and school-level (Level 3) random intercepts exhibit excellent fit along the diagonal reference lines, strongly supporting the assumption that the random effects are normally distributed.
+:::
+
+::: callout-tip
+#### Diagnostic Conclusion
+
+The diagnostic plots indicate no severe violations of the core HLM assumptions. The model provides a reliable and valid framework for estimating the variance components and fixed effects associated with student math achievement.
+:::
+
+### Results
+
+#### Question 1: Overall Impact of Small Classes
+
+Our first question evaluates whether assignment to a small class improved average math performance. Overall, we found that the benefit of small class-size peaks in Grade 1 and then declines, but the benefits still persist throughout all grades. The estimated small-class effect is positive in every grade: 7.94 points in Kindergarten, 13.37 points in Grade 1, 6.61 points in Grade 2, and 5.08 points in Grade 3. The Grade 1 estimates show the strongest statistical evidence. The Grade 3 estimate remains positive and reaches the 5% threshold.
+
+To put these estimates into perspective, considering the unconditional standard deviation of math scores in early grades is typically around 40 to 50 points, a 7.94 to 13.37-point increase translates to an effect size of roughly 0.15 to 0.25 standard deviations. This represents a small but practically meaningful educational impact, rather than just a statistically significant artifact. The fixed effects table also shows that the class-size result should be interpreted in the context of sizable baseline achievement differences. Low SES is associated with a reduction of roughly 17 to 20 raw math score points in every grade, and minority status is also negative and statistically significant throughout. These coefficients indicate that the treatment operates within a setting where substantial inequality remains present even after we adjusted and treated student, classroom, and school-level as covariates. However, small-class coefficient remains positive after controlling for those background factors, which suggests that the estimated class size effect is not simply reflecting differences in family socioeconomic composition, racial composition, or teacher characteristics across classrooms.
+
+From the results of the random-effects model, we can also see that our multilevel model is appropriate. In every grade, there is nonzero variance at both the classroom-within-school level and the school level, in addition to substantial student level residual variance. This indicates that part of the observed achievement variation is attributable to large context at school level or instructional setting. By allowing separate random intercepts for classrooms and schools, the model removes those baseline group differences from the fixed small-class estimate.
+
+| Predictor                  | Estimate | SE   | t-value | p-value | Sig.   |
+|:---------------------------|:---------|:-----|:--------|:--------|:-------|
+| (Intercept)                | 486.31   | 3.85 | 126.17  | \<0.001 | \*\*\* |
+| Small Class                | 7.94     | 3.06 | 2.60    | 0.010   | \*\*   |
+| Low SES                    | -19.63   | 1.52 | -12.96  | \<0.001 | \*\*\* |
+| Female                     | 5.98     | 1.04 | 5.74    | \<0.001 | \*\*\* |
+| Minority                   | -15.94   | 2.08 | -7.66   | \<0.001 | \*\*\* |
+| Teacher Experience (years) | 0.45     | 0.20 | 2.22    | 0.027   | \*     |
+| Teacher Master's Degree    | -2.01    | 2.61 | -0.77   | 0.442   |        |
+| Teacher Minority Status    | 3.02     | 3.82 | 0.79    | 0.431   |        |
+| High-Poverty School        | 9.56     | 5.06 | 1.89    | 0.062   | .      |
+
+: Fixed effects estimates (Kindergarten 3-Level HLM) {#tbl-q1}
+
+::: {.callout-note appearance="simple"}
+In summary, the raw-score results support a broad main effect conclusion that small classes are associated with higher math scores in all four grades, with the largest point advantage in Grade 1. The effect was shown to decline in Grades 2 and 3, but still benefits these two grades with detectable statistical significance.
+:::
+
+#### Question 2: Socioeconomic Gap and Small Classes
+
+Question 2 asks whether the small-class benefit differs systematically across disadvantaged subgroups. We addressed this question through two interaction terms: `small class x low SES` and `small class x high-poverty school`. For SES, the low-SES main effect gives the estimated gap in regular or regular with-aide classes, while the low-SES gap in small classes is obtained by adding the interaction coefficient to the low-SES main effect. Likewise, for school context, the small-class coefficient gives the treatment effect in lower-poverty schools, and the corresponding effect in high-poverty schools is the sum of the small-class coefficient and the interaction term.
+
+Across all four grades, the low SES main effect is strongly negative, ranging from -17.00 to -19.63 points. This indicates a persistent SES achievement gap. However, the `Small Class x Low SES` interaction is small in magnitude in every grade and none of the associated p-values approach 5% significance thresholds. When those interaction terms are combined with the low-SES main effects, the derived SES gaps in small classes are very similar to the derived SES gaps in regular classes.
+
+| Grade        | Low SES | Small × Low SES | P      | Gap: regular | Gap: small |
+|:-------------|:--------|:----------------|:-------|:-------------|:-----------|
+| Kindergarten | -19.63  | -1.36           | 0.6036 | -19.63       | -21.00     |
+| Grade 1      | -17.80  | -2.26           | 0.3144 | -17.80       | -20.06     |
+| Grade 2      | -18.97  | -1.48           | 0.5541 | -18.97       | -20.45     |
+| Grade 3      | -17.00  | 1.07            | 0.6305 | -17.00       | -15.94     |
+
+: Small Class × Low SES interaction and derived SES gap {#tbl-q2a}
+
+The raw-score results show strong evidence that low-SES students score lower on average. However, we see little evidence that assignment to a small class materially narrows or widens that disadvantage. The same logic applies to school-level disadvantages. The interaction is modest and statistically non-significant in every grade, which means the small-class treatment contrast does not appear to depend strongly on whether a school is above or below the poverty threshold.
+
+| Grade | Small class | Small × High poverty | P | Effect: lower poverty | Effect: high poverty |
+|:-----------|:-----------|:-----------|:-----------|:-----------|:-----------|
+| Kindergarten | 7.94 | 1.77 | 0.6964 | 7.94 | 9.71 |
+| Grade 1 | 13.37 | -1.96 | 0.6195 | 13.37 | 11.40 |
+| Grade 2 | 6.61 | 5.42 | 0.1908 | 6.61 | 12.03 |
+| Grade 3 | 5.08 | 1.09 | 0.7663 | 5.08 | 6.17 |
+
+: Small Class × High-poverty school interaction and derived treatment effect {#tbl-q2b}
+
+#### Question 3: Does the effect of small-class size fade out over time?
+
+Our question 3 examines how the small-class effect changes across grades rather than whether it exists in only one grade. Overall, the pattern suggests that the benefit of small classes is strongest in the earlier grades and then becomes smaller over time.
+
+In the grade-specific models, the small-class coefficient rises from Kindergarten to Grade 1, and then declines in Grades 2 and 3. The Grade 3 estimate remains positive (\$p = 0.040\$); however, interpreted cautiously in the context of multiple testing across four separate models (e.g., considering Bonferroni corrections), the statistical evidence for Grade 3 is marginal compared to the highly robust findings in Grades K through 2.
+
+Furthermore, it is critical to note that these estimates are derived from separate cross-sectional models rather than a true longitudinal tracking of individual students. Given the student mobility and study attrition noted in the STAR experimental design, this apparent 'fade-out' could be partially confounded by changes in the cohort composition over time. Nevertheless, the evidence is most consistent with early gains followed by attenuation, rather than continued accumulation of the treatment effect. Small classes appear to generate a meaningful early mathematics advantage, but that advantage weakens as students move into later elementary grades.
+
+| Grade        | Coefficient | Std. Error | 95% CI lower | 95% CI upper | t value | p value |
+|:----------|:----------|:----------|:----------|:----------|:----------|:----------|
+| Kindergarten | 7.94        | 3.06       | 1.95         | 13.94        | 2.596   | 0.010   |
+| Grade 1      | 13.37       | 2.83       | 7.82         | 18.92        | 4.724   | \<.001  |
+| Grade 2      | 6.61        | 2.81       | 1.11         | 12.12        | 2.355   | 0.019   |
+| Grade 3      | 5.08        | 2.46       | 0.26         | 9.89         | 2.067   | 0.040   |
+
+: Grade-specific small-class effect with confidence intervals {#tbl-q3}
+
+------------------------------------------------------------------------
+
+## Sensitivity analysis
+
+### Objective and Approach
+
+The Project STAR dataset possesses a strictly nested hierarchical structure (Students $\rightarrow$ Classes $\rightarrow$ Schools). Our primary analysis utilized a 3-level Hierarchical Linear Model (HLM) to account for this design. To ensure our findings are not merely artifacts of this specific random-effects structure, we conducted a sensitivity analysis by fitting a simpler **2-level model** (Students $\rightarrow$ Schools), effectively collapsing the classroom level, while keeping all fixed-effect covariates identical.
+
+### Robustness of the Main Effect
+
+As shown in Table 5 below, removing the classroom-level variance from the model does not materially alter our substantive conclusions.
+
+| Grade | 3-Level Model (Main) |   | 2-Level Model (Alternative) |   |
+|:---|:--:|:--:|:--:|:--:|
+|  | **Estimate** | **p-value** | **Estimate** | **p-value** |
+| Kindergarten | 7.94 | 0.010 | 7.66 | \<0.001 |
+| Grade 1 | 13.37 | \<0.001 | 13.62 | \<0.001 |
+| Grade 2 | 6.61 | 0.019 | 6.79 | \<0.001 |
+| Grade 3 | 5.08 | 0.040 | 5.11 | 0.001 |
+
+: Comparison of Small Class Treatment Effects across Model Structures {#tbl-sens}
+
+Across all four grades, the estimated advantage of small classes remains highly stable in magnitude and retains strong statistical significance. The point estimates in the 2-level models are nearly identical to those derived from the 3-level models.
+
+### Robustness of the Interaction Effects
+
+Furthermore, the interaction between small class assignment and low socioeconomic status (SES) remains consistently non-significant in the 2-level model across all grades:
+
+**Kindergarten:** Estimate = 0.38 ($p = 0.882$)
+
+**Grade 1:** Estimate = -1.94 ($p = 0.377$)
+
+**Grade 2:** Estimate = -1.86 ($p = 0.449$)
+
+**Grade 3:** Estimate = 2.14 ($p = 0.329$)
+
+These results provide parallel evidence that the effect of small classes does not differ systematically by students' socioeconomic status.
+
+::: {.callout-tip appearance="simple" icon="false"}
+## Conclusion of Sensitivity Check
+
+Our findings are highly robust. The causal relationship between small classes and improved math achievement, as well as the lack of evidence for closing the SES gap, holds true regardless of whether a 2-level or 3-level hierarchical structure is specified.
+:::
+
+## Conclusion & Discussion
+
+### Conclusion
+
+Using Project STAR data from Kindergarten through Grade 3, our analysis provides consistent evidence that assignment to a small class is associated with higher mathematics achievement.
+
+::: {.callout-note appearance="simple" icon="false"}
+### The Main Effect: Small Classes Work
+
+Using Project STAR data from Kindergarten through Grade 3, our analysis provides consistent evidence that assignment to a small class is associated with higher mathematics achievement. In the main three-level hierarchical models, the estimated small-class effect is positive and statistically significant in every grade: 7.94 points in Kindergarten (p = 0.00993), 13.39 points in Grade 1 (p = 0.00000356), 6.61 points in Grade 2 (p = 0.0192), and 5.08 points in Grade 3 (p = 0.0395). These results support the conclusion that smaller classes improved mathematics performance throughout the K–3 period covered by our study
+:::
+
+::: {.callout-warning appearance="simple" icon="false"}
+### The Fade-Out Effect: Early Gains Attenuate
+
+For the longer-term pattern, although the impact of small classes appears to fade out over time, in the sense that the coefficients become smaller in later grades, the estimated effect remains positive and statistically significant. That is to say, although the benefits of small classes do not appear to accumulate over time, the advantages students gain in earlier years may still influence later learning. Our analysis therefore suggests that assigning students to small classes is an effective intervention for improving mathematics performance in the early elementary grades, with the clearest and strongest evidence appearing in the earlier grades.
+:::
+
+::: {.callout-important appearance="simple" icon="false"}
+### The Equity Gap: Structural Disadvantages Remain
+
+At the same time, the models show a strong and highly consistent disadvantage associated with low socioeconomic status. The coefficient for low-SES students is large, negative, and highly significant in all grades. Thus, regardless of classroom assignment, lower-SES students tended to have substantially lower math scores, and our results do not support the conclusion that the benefits of small class sizes reduce the gap between low-SES and high-SES students. For Question 2, the interaction analyses likewise provide no statistically significant evidence that low-SES students benefit more from small classes than their peers. In other words, the intervention appears to raise achievement broadly across students, but it does not substantially narrow the pre-existing SES achievement gap. Overall, our findings support that small classes improve performance overall, but the underlying social disparities in achievement remain largely unaffected.
+:::
+
+### Sensitivity of Findings
+
+The sensitivity analysis reinforces this overall interpretation. The three-level structure is empirically preferred because it better captures the nested STAR design, and the model comparison in Kindergarten strongly favors it over a simpler two-level alternative. Nevertheless, the positive effect of small classes remains stable in sign and similar in magnitude even when the class-level random effect is removed. This means that the principal substantive finding does not depend on one fragile modeling choice. Rather, what changes across specifications is mainly the apparent precision of some coefficients and the occasional appearance of unstable interaction effects.
+
+::: callout-tip
+### Policy Implications
+
+**Class-size reduction is a proven instructional investment, but not a standalone equity solution.** From a policy perspective, these results imply that class-size reduction can be justified as an evidence-based strategy for strengthening early mathematics achievement, particularly in the initial elementary years. At the same time, the findings indicate that class-size reduction alone should not be expected to function as a sufficient equity intervention. Because the SES gap remains large and statistically significant even when small classes are beneficial on average, additional policies targeting socioeconomic disadvantage would still be necessary if the goal is to reduce inequality in academic outcomes. Thus, the most defensible policy interpretation is twofold: first, small classes are valuable as a general instructional investment that improves early achievement; second, they should be paired with more targeted supports for disadvantaged students if policymakers aim to address persistent achievement gaps rather than only raise average performance.
+:::
+
+## Author Contributions
+The authors confirm their contribution to the project as follows:
+
+**Akshaj Joshi:** Exploratory Data Analysis: Data Visualization and descriptive interpretation.
+
+**Minghao Wang:** Formal Analysis (Inferential Results and Sensitivity Analysis); Data Visualization; Conclusion and Discussion.
+
+**Jingya Zeng:** Data Curation and Preprocessing; Methodology (HLM Model Specification); Formal Analysis (Results and Sensitivity Analysis); Software (HTML implementation and technical formatting).
+
+**Phoo Pye Zone:** Data Visualization; Formal Analysis and interpretation of results.
+
+Note on Presentation: All authors actively participated in the oral presentation and were responsible for the preparation and defense of their respective analytical sections.
+
+## References
+
+::: {#refs}
+Finn, J. D., & Achilles, C. M. (1990). Answers and questions about class size: A statewide experiment. *American Educational Research Journal*, *27*(3), 557–577. https://doi.org/10.3102/00028312027003557
+
+Glass, G. V., & Smith, M. L. (1979). Meta-analysis of research on class size and achievement. *Educational Evaluation and Policy Analysis*, *1*(1), 2–16. https://doi.org/10.3102/01623737001001002
+:::

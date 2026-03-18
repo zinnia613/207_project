@@ -1,0 +1,345 @@
+---
+title: "207project_SES"
+author: "Zinnia"
+date: "2026-03-09"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(haven)    
+library(lme4)      
+library(lmerTest) 
+
+df_students <- read_sav("C:/Users/lenovo/Desktop/STA207/raw data/STAR_Students.sav") %>% rename_with(tolower)
+df_schools <- read_sav("C:/Users/lenovo/Desktop/STA207/raw data/STAR_K-3_Schools.sav") %>% rename_with(tolower)
+
+# Data Clean
+df_k <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = gkschid,      
+    class_id   = gktchid,     
+    
+    math_score = gktmathss,     
+    
+    # Level l
+    low_ses    = gkfreelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = gkclasstype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = gktyears,     
+    t_degree   = gkthighdegree,     
+    t_race     = gktrace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = gkfrlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),             # 1=Poverty, 0=o/w
+    female      = ifelse(gender == 2, 1, 0),              # 1=female, 0=male
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   # 1=minority, 0=white
+    small_class = ifelse(class_type == 1, 1, 0),          # 1=small, 0=regular/aid
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),             # 1=master or above, 0=bachelor
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), # 1=minority teacher
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_k <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    (1 | school_id/class_id), 
+  
+  data = df_k,
+  REML = TRUE 
+)
+
+summary(hlm_k)
+anova(hlm_k) 
+```
+
+```{r}
+# Data Clean
+df_1 <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = g1schid,      
+    class_id   = g1tchid,     
+    
+    math_score = g1tmathss,     
+    
+    # Level l
+    low_ses    = g1freelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = g1classtype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = g1tyears,     
+    t_degree   = g1thighdegree,     
+    t_race     = g1trace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = g1frlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),             # 1=Poverty, 0=o/w
+    female      = ifelse(gender == 2, 1, 0),              # 1=female, 0=male
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   # 1=minority, 0=white
+    small_class = ifelse(class_type == 1, 1, 0),          # 1=small, 0=regular/aid
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),             # 1=master or above, 0=bachelor
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), # 1=minority teacher
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_1 <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    
+    (1 | school_id/class_id), 
+  
+  data = df_1,
+  REML = TRUE,
+  control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))
+)
+
+summary(hlm_1)
+anova(hlm_1) 
+```
+
+```{r}
+# Data Clean
+df_2 <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = g2schid,      
+    class_id   = g2tchid,     
+    
+    math_score = g2tmathss,     
+    
+    # Level l
+    low_ses    = g2freelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = g2classtype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = g2tyears,     
+    t_degree   = g2thighdegree,     
+    t_race     = g2trace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = g2frlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),            
+    female      = ifelse(gender == 2, 1, 0),              
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   
+    small_class = ifelse(class_type == 1, 1, 0),          
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),            
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), 
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_2 <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    
+    (1 | school_id/class_id), 
+  
+  data = df_2,
+  REML = TRUE 
+)
+
+summary(hlm_2)
+anova(hlm_2) 
+```
+
+```{r}
+# Data Clean
+df_3 <- df_students %>%
+  dplyr::select(
+    stdntid,
+    school_id  = g3schid,      
+    class_id   = g3tchid,     
+    
+    math_score = g3tmathss,     
+    
+    # Level l
+    low_ses    = g3freelunch,     # 1=Free lunch, 2=Non-free
+    gender     = gender,       # 1=Male, 2=Female
+    race       = race,         # 1=White, 2=Black, 3=Asian...
+    
+    # Level 2
+    class_type = g3classtype,     # 1=Small, 2=Regular, 3=Aide
+    t_exp      = g3tyears,     
+    t_degree   = g3thighdegree,     
+    t_race     = g3trace       
+  ) %>%
+  drop_na() %>%
+  
+  # Level 3
+  left_join(
+    df_schools %>% dplyr::select(school_id = schid, school_poverty_pct = g3frlnch),
+    by = "school_id"
+  ) %>%
+  drop_na(school_poverty_pct) %>%
+  
+  # Coding & Standardization
+  mutate(
+    # Dummy Coding
+    low_ses     = ifelse(low_ses == 1, 1, 0),             
+    female      = ifelse(gender == 2, 1, 0),              
+    minority    = ifelse(race %in% c(2,3,4,5,6), 1, 0),   
+    small_class = ifelse(class_type == 1, 1, 0),         
+    t_degree_hi = ifelse(t_degree > 2, 1, 0),            
+    t_minority  = ifelse(t_race %in% c(2,3,4,5,6), 1, 0), 
+    
+    high_poverty_sch = ifelse(school_poverty_pct >= median(unique(school_poverty_pct), na.rm=TRUE), 1, 0),
+    
+    school_id = as.factor(school_id),
+    class_id  = as.factor(class_id)
+  )
+
+# 3-Level HLM
+hlm_3 <- lmer(
+  math_score ~ 
+    low_ses + female + minority +
+    small_class + t_exp + t_degree_hi + t_minority +
+    high_poverty_sch +
+    
+    small_class:low_ses +
+    small_class:high_poverty_sch +
+    
+    (1 | school_id/class_id), 
+  
+  data = df_3,
+  REML = TRUE 
+)
+
+summary(hlm_3)
+anova(hlm_3) 
+```
+
+#LRT comparison
+
+```{r}
+model_3level_ml <- lmer(math_score ~ low_ses + female + minority + 
+                          small_class + t_exp + t_degree_hi + t_minority + 
+                          high_poverty_sch + small_class:low_ses + small_class:high_poverty_sch + 
+                          (1 | school_id/class_id), 
+                        data = df_k, REML = FALSE)
+
+model_2level_ml <- lmer(math_score ~ low_ses + female + minority + 
+                          small_class + t_exp + t_degree_hi + t_minority + 
+                          high_poverty_sch + small_class:low_ses + small_class:high_poverty_sch + 
+                          (1 | school_id), 
+                        data = df_k, REML = FALSE)
+
+anova(model_2level_ml, model_3level_ml)
+```
+
+#sensitivity
+
+```{r}
+hlmk_2level_sens <- lmer(math_score ~ low_ses + female + minority + 
+                          small_class + t_exp + t_degree_hi + t_minority + 
+                          high_poverty_sch + small_class:low_ses + 
+                          small_class:high_poverty_sch + 
+                          (1 | school_id), 
+                        data = df_k, REML = TRUE)
+
+summary(hlmk_2level_sens)
+anova(hlmk_2level_sens)
+```
+
+```{r}
+hlm1_2level_sens <- lmer(math_score ~ low_ses + female + minority + 
+                          small_class + t_exp + t_degree_hi + t_minority + 
+                          high_poverty_sch + small_class:low_ses + 
+                          small_class:high_poverty_sch + 
+                          (1 | school_id), 
+                        data = df_1, REML = TRUE)
+
+summary(hlm1_2level_sens)
+anova(hlm1_2level_sens)
+```
+
+```{r}
+hlm2_2level_sens <- lmer(math_score ~ low_ses + female + minority + 
+                          small_class + t_exp + t_degree_hi + t_minority + 
+                          high_poverty_sch + small_class:low_ses + 
+                          small_class:high_poverty_sch + 
+                          (1 | school_id), 
+                        data = df_2, REML = TRUE)
+
+summary(hlm2_2level_sens)
+anova(hlm2_2level_sens)
+```
+
+```{r}
+hlm3_2level_sens <- lmer(math_score ~ low_ses + female + minority + 
+                          small_class + t_exp + t_degree_hi + t_minority + 
+                          high_poverty_sch + small_class:low_ses + 
+                          small_class:high_poverty_sch + 
+                          (1 | school_id), 
+                        data = df_3, REML = TRUE)
+
+summary(hlm3_2level_sens)
+anova(hlm3_2level_sens)
+```
